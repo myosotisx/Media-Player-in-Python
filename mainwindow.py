@@ -8,6 +8,7 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtMultimediaWidgets import QVideoWidget
 
 
 class Ui_MainWindow(object):
@@ -16,15 +17,29 @@ class Ui_MainWindow(object):
         MainWindow.resize(800, 542)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
-        self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.centralwidget)
-        self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.verticalLayout = QtWidgets.QVBoxLayout()
+        self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.urlLineEdit = QtWidgets.QLineEdit(self.centralwidget)
-        self.urlLineEdit.setObjectName("urlLineEdit")
-        self.verticalLayout.addWidget(self.urlLineEdit)
+        self.mediaWidget = QVideoWidget(self.centralwidget)
+        self.mediaWidget.setObjectName("mediaWidget")
+        self.verticalLayout.addWidget(self.mediaWidget)
+        self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.curTimeLabel = QtWidgets.QLabel(self.centralwidget)
+        self.curTimeLabel.setObjectName("curTimeLabel")
+        self.horizontalLayout_2.addWidget(self.curTimeLabel)
+        self.progressSlider = QtWidgets.QSlider(self.centralwidget)
+        self.progressSlider.setOrientation(QtCore.Qt.Horizontal)
+        self.progressSlider.setObjectName("progressSlider")
+        self.horizontalLayout_2.addWidget(self.progressSlider)
+        self.endTimeLabel = QtWidgets.QLabel(self.centralwidget)
+        self.endTimeLabel.setObjectName("endTimeLabel")
+        self.horizontalLayout_2.addWidget(self.endTimeLabel)
+        self.verticalLayout.addLayout(self.horizontalLayout_2)
         self.horizontalLayout = QtWidgets.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
+        self.urlLineEdit = QtWidgets.QLineEdit(self.centralwidget)
+        self.urlLineEdit.setObjectName("urlLineEdit")
+        self.horizontalLayout.addWidget(self.urlLineEdit)
         self.playBtn = QtWidgets.QPushButton(self.centralwidget)
         self.playBtn.setObjectName("playBtn")
         self.horizontalLayout.addWidget(self.playBtn)
@@ -35,9 +50,9 @@ class Ui_MainWindow(object):
         self.stopBtn.setObjectName("stopBtn")
         self.horizontalLayout.addWidget(self.stopBtn)
         self.verticalLayout.addLayout(self.horizontalLayout)
-        self.verticalLayout.setStretch(0, 1)
+        self.verticalLayout.setStretch(0, 8)
         self.verticalLayout.setStretch(1, 1)
-        self.verticalLayout_2.addLayout(self.verticalLayout)
+        self.verticalLayout.setStretch(2, 1)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 23))
@@ -53,6 +68,8 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        self.curTimeLabel.setText(_translate("MainWindow", "current"))
+        self.endTimeLabel.setText(_translate("MainWindow", "end"))
         self.playBtn.setText(_translate("MainWindow", "播放"))
         self.pauseBtn.setText(_translate("MainWindow", "暂停"))
         self.stopBtn.setText(_translate("MainWindow", "停止"))

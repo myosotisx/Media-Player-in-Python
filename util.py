@@ -18,3 +18,13 @@ def match_rtp_port(response):
     if not res:
         return None
     return int(res.groupdict().get('rtp_port'))
+
+
+def match_media_time(response):
+    res = re.search(r'npt=(?P<cur_time>(\d*\.?\d*)|now)-(?P<end_time>\d*\.?\d*)', response)
+    if not res:
+        return None, None
+    res_dict = res.groupdict()
+    return int(float(res_dict['cur_time'])), int(float(res_dict['end_time']))
+
+
