@@ -1,3 +1,6 @@
+import socket
+
+
 HEADER_SIZE = 12
 TS_RTP_PACKET_SIZE = 1328
 H264_PAYLOAD_TYPE = 96
@@ -14,12 +17,8 @@ class RTP_PACKET:
     def get_payload(self, data):
         return data[HEADER_SIZE:]
 
-    def get_payload_type(self, data):
-        header = data[:HEADER_SIZE]
-        return header & 0x7F
-
     def get_seq(self, data):
-        header = data[:HEADER_SIZE]
+        header = bytearray(data[:HEADER_SIZE])
         return header[2] << 8 | header[3]
 
 

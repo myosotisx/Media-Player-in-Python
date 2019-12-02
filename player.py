@@ -6,7 +6,7 @@ import time
 from PyQt5.QtWidgets import *
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaPlaylist, QMediaContent
-from PyQt5.QtCore import QUrl, Qt, pyqtSignal
+from PyQt5.QtCore import QUrl, Qt, pyqtSignal, QTimer
 
 from mainwindow import Ui_MainWindow
 
@@ -18,6 +18,9 @@ from rtsp import rtsp
 
 class Player(QMainWindow, Ui_MainWindow):
     play_signal = pyqtSignal(object)
+    IDLE = 0
+    READY = 1
+    PLAY = 2
 
     def __init__(self):
         super(Player, self).__init__()
@@ -31,6 +34,11 @@ class Player(QMainWindow, Ui_MainWindow):
         self.pauseBtn.clicked.connect(self.pause_media)
         self.stopBtn.clicked.connect(self.stop_media)
 
+        self.urlLineEdit.setText('rtsp://127.0.0.1:57501/1')
+
+        # init component
+        self.timer = QTimer(self)
+
         # init sockets
         self.client_rtsp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_rtsp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -41,15 +49,20 @@ class Player(QMainWindow, Ui_MainWindow):
         self.client_rtcp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
+        #init thread
+        self.client_rtp_thread = None
+        self.play_event = None
+
         # init client parameters
         self.seq = 0
         self.client_rtp_port = None
         self.client_rtcp_port = None
         self.client_session_id = None
-        self.client_rtp_thread = None
+        self.url = None
+        self.status = self.IDLE
 
     def close_rtsp_connection(self):
-        self.client_rtsp_socket.shutdown(2)
+        self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtsp_socket.close()
 
     def setup_play(self, url):
@@ -106,6 +119,7 @@ class Player(QMainWindow, Ui_MainWindow):
         # setup RTP and RTCP socket
         self.client_rtp_socket.bind(('127.0.0.1', self.client_rtp_port))
         self.client_rtcp_socket.bind(('127.0.0.1', self.client_rtcp_port))
+        self.status = self.READY
         # send SETUP
         request_dict = {'CSeq': str(self.seq), 'Transport': 'RTP/AVP;unicast;client_port=%d-%d' % (self.client_rtp_port,
                                                                                                    self.client_rtcp_port)}
@@ -137,42 +151,86 @@ class Player(QMainWindow, Ui_MainWindow):
             self.close_rtsp_connection()
             QMessageBox.warning(self, 'Warning', 'Error: unexpected server response SN.')
             return -1
+        self.seq += 1
         return 0
 
     def recv_stream(self, cache_filename):
         cur_seq = 0
         file = open(cache_filename, 'wb')
-        bytes_cnt = 0
         while True:
             data = self.client_rtp_socket.recv(rtp.TS_RTP_PACKET_SIZE)
             seq = rtp_packet.get_seq(data)
-            if cur_seq and cur_seq >= seq:
+            if seq and seq < cur_seq:
+                print('packet loss')
                 continue
             cur_seq = seq
             payload = rtp_packet.get_payload(data)
-            bytes_cnt += file.write(payload)
-            print(bytes_cnt)
+            if self.status == self.READY:
+                self.play_event.wait()
+            if self.status == self.IDLE:
+                break
+            print('play')
+            file.write(payload)
 
     def play_media(self):
-        res = self.setup_play(self.urlLineEdit.text())
-        if res != -1:
-            cache_file = r'C:\Users\Myosotis\PycharmProjects\Player\tmp.ts'
-            self.client_rtp_thread = threading.Thread(target=self.recv_stream, args=(cache_file,))
-            self.client_rtp_thread.start()
-            time.sleep(1)
-            self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(cache_file)))
+        if self.status == self.IDLE:
+            # setup and play
+            url = self.urlLineEdit.text()
+            res = self.setup_play(url)
+            if res != -1:
+                self.url = url
+                cache_file = r'C:\Users\Myosotis\Videos\tmp.ts'
+                self.client_rtp_thread = threading.Thread(target=self.recv_stream, args=(cache_file,))
+                self.status = self.PLAY
+                self.play_event = threading.Event()
+                self.client_rtp_thread.start()
+                self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(cache_file)))
+                self.timer.timeout.connect(self.start_play)
+                self.timer.start(5000)
+        elif self.status == self.READY:
+            # resume
+            self.status = self.PLAY
+            self.play_event.set()
             self.media_player.play()
+        else:
+            return
 
+    def start_play(self):
+        self.timer.disconnect()
+        self.media_player.play()
 
-
+    def closeEvent(self, event):
+        self.media_player.stop()
+        self.status = self.IDLE
 
     def pause_media(self):
-        pass
+        if self.status != self.PLAY:
+            return
+        # send PAUSE
+        request_dict = {'CSeq': str(self.seq), 'Session': self.client_session_id}
+        request = rtsp.generate_request('PAUSE', self.url, request_dict)
+        self.client_rtsp_socket.send(request.encode())
+        response = self.client_rtsp_socket.recv(1024).decode()
+        if rtsp.get_status_code(response) != 200:
+            self.close_rtsp_connection()
+            QMessageBox.warning(self, 'Warning', 'Error: unexpected server response code.')
+            return -1
+        response_dict = rtsp.get_response_dict(response)
+        if int(response_dict.get('CSeq')) != self.seq:
+            self.close_rtsp_connection()
+            QMessageBox.warning(self, 'Warning', 'Error: unexpected server response SN.')
+            return -1
+        self.seq += 1
+        self.media_player.pause()
+        self.play_event.clear()
+        self.status = self.READY
 
     def stop_media(self):
         pass
 
-app = QApplication(sys.argv)
-demo = Player()
-demo.show()
-sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    player = Player()
+    player.show()
+    sys.exit(app.exec_())
