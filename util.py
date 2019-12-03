@@ -26,5 +26,3 @@ def match_media_time(response):
         return None, None
     res_dict = res.groupdict()
     return int(float(res_dict['cur_time'])), int(float(res_dict['end_time']))
-
-

@@ -35,6 +35,7 @@ class Player(QMainWindow, Ui_MainWindow):
         self.playBtn.clicked.connect(self.play_media)
         self.pauseBtn.clicked.connect(self.pause_media)
         self.stopBtn.clicked.connect(self.stop_media)
+        self.progressSlider.mouseReleaseEvent = self.handleMouseRelease
         self.progressSlider.setDisabled(True)
         self.urlLineEdit.setText('rtsp://127.0.0.1:57501/1')
 
@@ -62,11 +63,13 @@ class Player(QMainWindow, Ui_MainWindow):
         self.client_session_id = None
         self.url = None
         self.status = self.IDLE
-        self.media_duration = None
-        self.current_time = None
-        self.set_play_time(0, 0)
+        self.media_duration = 0
+        self.current_time = 0
+        self.init_end_time_label()
+        self.set_play_time()
 
         # init cache file
+        self.file = None
         self.cache_filename = r'C:\Users\Myosotis\Videos\tmp.ts'
 
     def close_rtsp_connection(self):
@@ -158,7 +161,6 @@ class Player(QMainWindow, Ui_MainWindow):
         request = rtsp.generate_request('PLAY', url, request_dict)
         self.client_rtsp_socket.send(request.encode())
         response = self.client_rtsp_socket.recv(1024).decode()
-        print(response)
         if rtsp.get_status_code(response) != 200:
             # self.close_rtsp_connection()
             self.destroy_connection()
@@ -176,73 +178,64 @@ class Player(QMainWindow, Ui_MainWindow):
 
     def recv_stream(self, cache_filename):
         cur_seq = 0
-        file = open(cache_filename, 'wb')
+        self.file = open(cache_filename, 'wb')
         while True:
+            if self.status == self.READY:
+                self.play_event.wait()
+            if self.status == self.IDLE:
+                break
             try:
                 data = self.client_rtp_socket.recv(rtp.TS_RTP_PACKET_SIZE)
             except:
-                break
+                print('broken socket')
+                continue
             seq = rtp_packet.get_seq(data)
+            # print(seq)
             if seq and seq < cur_seq:
                 print('Packet loss.')
                 continue
             cur_seq = seq
             payload = rtp_packet.get_payload(data)
-            if self.status == self.READY:
-                self.play_event.wait()
-            if self.status == self.IDLE:
-                break
-            file.write(payload)
+            self.file.write(payload)
         print('Exit RTP thread.')
-        file.close()
+        if self.file:
+            self.file.close()
 
     def start_play(self):
-        self.init_progress_slider(self.media_duration)
-        self.set_play_time(self.current_time, self.media_duration)
+        self.init_progress_slider()
+        self.init_end_time_label()
+        self.timer.stop()
         self.timer.disconnect()
+        self.timer.timeout.connect(self.update_play_time)
+        self.timer.start(1000)
         self.progressSlider.setDisabled(False)
-
-        # timer for progress update
-        self.startTimer(1000)
-
+        self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(self.cache_filename)))
         self.media_player.play()
 
-    def init_progress_slider(self, max_val):
+    def init_progress_slider(self):
         self.progressSlider.setMinimum(0)
-        try:
-            self.progressSlider.setMaximum(float(max_val))
-        except:
-            self.progressSlider.setMaximum(0)
+        self.progressSlider.setMaximum(self.media_duration)
 
-    def set_play_time(self, cur_time, end_time):
-        if cur_time:
-            # self.curTimeLabel.setText(str(cur_time))
-            self.curTimeLabel.setText('%d:%02d' % (cur_time // 60, cur_time % 60))
-        else:
-            self.curTimeLabel.setText('0:00')
-        if end_time:
-            self.endTimeLabel.setText('%d:%02d' % (end_time // 60, end_time % 60))
-        else:
-            self.endTimeLabel.setText('0:00')
-        try:
-            self.progressSlider.setValue(int(cur_time))
-        except:
-            self.progressSlider.setValue(0)
+    def init_end_time_label(self):
+        self.endTimeLabel.setText('%d:%02d' % (self.media_duration // 60, self.media_duration % 60))
+
+    def set_play_time(self):
+        if self.current_time >= self.media_duration:
+            self.stop_media()
+        self.progressSlider.setValue(self.current_time)
+        current_time = self.current_time
+        self.curTimeLabel.setText('%d:%02d' % (current_time // 60, current_time % 60))
 
     def update_play_time(self):
-        self.curTimeLabel.setText('%d:%02d' % (self.current_time // 60, self.current_time % 60))
+        self.current_time += 1
+        if self.current_time >= self.media_duration:
+            self.stop_media()
         self.progressSlider.setValue(self.current_time)
+        current_time = self.current_time
+        self.curTimeLabel.setText('%d:%02d' % (current_time // 60, current_time % 60))
 
     def closeEvent(self, event):
         if self.status != self.IDLE:
-            self.stop_media()
-
-    def timerEvent(self, *args, **kwargs):
-        if self.status != self.PLAY:
-            return
-        self.current_time += 1
-        self.update_play_time()
-        if self.current_time >= self.media_duration:
             self.stop_media()
 
     def play_media(self):
@@ -259,7 +252,6 @@ class Player(QMainWindow, Ui_MainWindow):
                 self.status = self.PLAY
                 self.play_event = threading.Event()
                 self.client_rtp_thread.start()
-                self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(self.cache_filename)))
                 self.timer.timeout.connect(self.start_play)
                 self.timer.start(3000)
         elif self.status == self.READY:
@@ -284,6 +276,7 @@ class Player(QMainWindow, Ui_MainWindow):
             self.status = self.PLAY
             self.play_event.set()
             self.media_player.play()
+            self.timer.start(1000)
         else:
             return
 
@@ -291,6 +284,7 @@ class Player(QMainWindow, Ui_MainWindow):
         if self.status != self.PLAY:
             return
         self.media_player.pause()
+        self.timer.stop()
         self.play_event.clear()
         self.status = self.READY
         # send PAUSE
@@ -332,6 +326,59 @@ class Player(QMainWindow, Ui_MainWindow):
         self.seq += 1
         self.destroy_connection()
 
+    def handleMouseRelease(self, event):
+        self.reposition_media()
+
+    def reposition_media(self):
+        if self.status == self.IDLE:
+            return
+        self.pause_media()
+        self.media_player.stop()
+        self.media_player.setMedia(QMediaContent())
+        self.timer.stop()
+        self.timer.disconnect()
+        self.play_event.clear()
+        self.status = self.READY
+        self.current_time = self.progressSlider.value()
+        self.set_play_time()
+
+        # reset socket
+        self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
+        self.client_rtp_socket.close()
+        self.client_rtp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.client_rtp_socket.bind(('127.0.0.1', self.client_rtp_port))
+
+        # send PLAY
+        request_dict = {'CSeq': str(self.seq), 'Session': self.client_session_id, 'Range': 'npt=%.3f-%.3f' %
+                                                                                           (self.current_time,
+                                                                                            self.media_duration)}
+        request = rtsp.generate_request('PLAY', self.url, request_dict)
+        self.client_rtsp_socket.send(request.encode())
+        response = self.client_rtsp_socket.recv(1024).decode()
+        print(response)
+        if rtsp.get_status_code(response) != 200:
+            self.destroy_connection()
+            QMessageBox.warning(self, 'Warning', 'Error: unexpected server response code.')
+            return
+        response_dict = rtsp.get_response_dict(response)
+        if int(response_dict.get('CSeq')) != self.seq:
+            self.destroy_connection()
+            QMessageBox.warning(self, 'Warning', 'Error: unexpected server response SN.')
+            return
+        self.seq += 1
+        self.current_time, self.media_duration = util.match_media_time(response)
+
+        # reset cache file
+        self.file.close()
+        os.remove(self.cache_filename)
+        self.file = open(self.cache_filename, 'wb')
+        print('reset cache')
+        # resume
+        self.status = self.PLAY
+        self.play_event.set()
+        self.timer.timeout.connect(self.start_play)
+        self.timer.start(3000)
+
     def destroy_connection(self):
         # reset status
         self.status = self.IDLE
@@ -362,18 +409,26 @@ class Player(QMainWindow, Ui_MainWindow):
         self.client_rtp_thread = None
         self.play_event = None
 
+        # reset timer
+        self.timer.stop()
+        self.timer.disconnect()
+
         # reset client parameters
         self.seq = 0
         self.client_rtp_port = None
         self.client_rtcp_port = None
         self.client_session_id = None
         self.url = None
-        self.media_duration = None
-        self.current_time = None
+        self.media_duration = 0
+        self.current_time = 0
+        self.init_end_time_label()
+        self.set_play_time()
 
         # reset UI
         self.progressSlider.setDisabled(True)
-        self.set_play_time(0, 0)
+
+        # reset cache file
+        self.file = None
 
 
 if __name__ == "__main__":
