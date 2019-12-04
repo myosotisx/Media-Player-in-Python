@@ -1,14 +1,13 @@
 import sys
 import socket
 import threading
-import time
 import os
 
-from PyQt5.QtGui import QPalette, QColor, QFont
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import *
 from PyQt5.QtMultimediaWidgets import QVideoWidget
-from PyQt5.QtMultimedia import QMediaPlayer, QMediaPlaylist, QMediaContent
-from PyQt5.QtCore import QUrl, Qt, pyqtSignal, QTimer, QFile
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtCore import QUrl, pyqtSignal, QTimer
 
 from mainwindow import Ui_MainWindow
 
@@ -71,12 +70,9 @@ class Player(QMainWindow, Ui_MainWindow):
         self.set_play_time()
 
         # init cache file
+        self.client_root = os.path.split(os.path.abspath(__file__))[0]
+        self.cache_filename = os.path.join(self.client_root, 'Cache/tmp.ts')
         self.file = None
-        self.cache_filename = 'Cache/tmp.ts'
-
-    def close_rtsp_connection(self):
-        self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
-        self.client_rtsp_socket.close()
 
     def setup_play(self, url):
         url_tup = util.parse_url(url)
@@ -250,7 +246,7 @@ class Player(QMainWindow, Ui_MainWindow):
                 self.play_event = threading.Event()
                 self.client_rtp_thread.start()
                 self.timer.timeout.connect(self.start_play)
-                self.timer.start(3000)
+                self.timer.start(5000)
         elif self.status == self.READY:
             # send PLAY
             request_dict = {'CSeq': str(self.seq), 'Session': self.client_session_id, 'Range': 'npt=now-'}
@@ -337,7 +333,7 @@ class Player(QMainWindow, Ui_MainWindow):
         self.set_play_time()
 
         # reset socket
-        self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
+        # self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtp_socket.close()
         self.client_rtp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtp_socket.bind(('127.0.0.1', self.client_rtp_port))
@@ -369,7 +365,7 @@ class Player(QMainWindow, Ui_MainWindow):
         self.status = self.PLAY
         self.play_event.set()
         self.timer.timeout.connect(self.start_play)
-        self.timer.start(3000)
+        self.timer.start(5000)
 
     def destroy_connection(self):
         # reset status
@@ -380,19 +376,19 @@ class Player(QMainWindow, Ui_MainWindow):
         self.media_player.setMedia(QMediaContent())
 
         # reset RTSP socket
-        self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
+        # self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtsp_socket.close()
         self.client_rtsp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_rtsp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # reset RTP socket
-        self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
+        # self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtp_socket.close()
         self.client_rtp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # reset RTCP socket
-        self.client_rtcp_socket.shutdown(socket.SHUT_RDWR)
+        # self.client_rtcp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtcp_socket.close()
         self.client_rtcp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
