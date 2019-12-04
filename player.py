@@ -4,10 +4,11 @@ import threading
 import time
 import os
 
+from PyQt5.QtGui import QPalette, QColor, QFont
 from PyQt5.QtWidgets import *
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaPlaylist, QMediaContent
-from PyQt5.QtCore import QUrl, Qt, pyqtSignal, QTimer
+from PyQt5.QtCore import QUrl, Qt, pyqtSignal, QTimer, QFile
 
 from mainwindow import Ui_MainWindow
 
@@ -29,14 +30,15 @@ class Player(QMainWindow, Ui_MainWindow):
         # init UI
         self.setupUi(self)
         self.media_player = QMediaPlayer(self)
-        # self.video_window = QVideoWidget(self)
-        self.media_player.setVideoOutput(self.mediaWidget)
-        # self.verticalLayout.insertWidget(0, self.video_window)
+        self.video_widget = QVideoWidget(self)
+        self.media_player.setVideoOutput(self.video_widget)
+        self.centralwidget.layout().insertWidget(0, self.video_widget)
         self.playBtn.clicked.connect(self.play_media)
         self.pauseBtn.clicked.connect(self.pause_media)
         self.stopBtn.clicked.connect(self.stop_media)
-        self.progressSlider.mouseReleaseEvent = self.handleMouseRelease
+        self.progressSlider.sliderReleased.connect(self.reposition_media)
         self.progressSlider.setDisabled(True)
+
         self.urlLineEdit.setText('rtsp://127.0.0.1:57501/1')
 
         # init component
@@ -70,7 +72,7 @@ class Player(QMainWindow, Ui_MainWindow):
 
         # init cache file
         self.file = None
-        self.cache_filename = r'C:\Users\Myosotis\Videos\tmp.ts'
+        self.cache_filename = 'Cache/tmp.ts'
 
     def close_rtsp_connection(self):
         self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
@@ -87,7 +89,6 @@ class Player(QMainWindow, Ui_MainWindow):
         try:
             self.client_rtsp_socket.connect((ip, port))
         except Exception as e:
-            print(e)
             QMessageBox.warning(self, 'Warning', 'Error: connect to media server failed.')
             return -1
 
@@ -187,17 +188,13 @@ class Player(QMainWindow, Ui_MainWindow):
             try:
                 data = self.client_rtp_socket.recv(rtp.TS_RTP_PACKET_SIZE)
             except:
-                print('broken socket')
                 continue
             seq = rtp_packet.get_seq(data)
-            # print(seq)
             if seq and seq < cur_seq:
-                print('Packet loss.')
                 continue
             cur_seq = seq
             payload = rtp_packet.get_payload(data)
             self.file.write(payload)
-        print('Exit RTP thread.')
         if self.file:
             self.file.close()
 
@@ -326,9 +323,6 @@ class Player(QMainWindow, Ui_MainWindow):
         self.seq += 1
         self.destroy_connection()
 
-    def handleMouseRelease(self, event):
-        self.reposition_media()
-
     def reposition_media(self):
         if self.status == self.IDLE:
             return
@@ -355,7 +349,6 @@ class Player(QMainWindow, Ui_MainWindow):
         request = rtsp.generate_request('PLAY', self.url, request_dict)
         self.client_rtsp_socket.send(request.encode())
         response = self.client_rtsp_socket.recv(1024).decode()
-        print(response)
         if rtsp.get_status_code(response) != 200:
             self.destroy_connection()
             QMessageBox.warning(self, 'Warning', 'Error: unexpected server response code.')
@@ -372,7 +365,6 @@ class Player(QMainWindow, Ui_MainWindow):
         self.file.close()
         os.remove(self.cache_filename)
         self.file = open(self.cache_filename, 'wb')
-        print('reset cache')
         # resume
         self.status = self.PLAY
         self.play_event.set()
@@ -432,7 +424,10 @@ class Player(QMainWindow, Ui_MainWindow):
 
 
 if __name__ == "__main__":
+
     app = QApplication(sys.argv)
+    font = QFont('Microsoft YaHei', 10)
+    app.setFont(font)
     player = Player()
     player.show()
     sys.exit(app.exec_())
