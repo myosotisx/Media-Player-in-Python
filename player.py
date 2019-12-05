@@ -35,6 +35,8 @@ class Player(QMainWindow, Ui_MainWindow):
         self.playBtn.clicked.connect(self.play_media)
         self.pauseBtn.clicked.connect(self.pause_media)
         self.stopBtn.clicked.connect(self.stop_media)
+        self.progressSlider.originMouseMoveEvent = self.progressSlider.mouseMoveEvent
+        self.progressSlider.mouseMoveEvent = self.progressSlider_mouse_move
         self.progressSlider.sliderReleased.connect(self.reposition_media)
         self.progressSlider.setDisabled(True)
 
@@ -205,6 +207,11 @@ class Player(QMainWindow, Ui_MainWindow):
         self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(self.cache_filename)))
         self.media_player.play()
 
+    def progressSlider_mouse_move(self, event):
+        self.progressSlider.originMouseMoveEvent(event)
+        self.current_time = self.progressSlider.value()
+        self.set_play_time()
+
     def init_progress_slider(self):
         self.progressSlider.setMinimum(0)
         self.progressSlider.setMaximum(self.media_duration)
@@ -221,11 +228,7 @@ class Player(QMainWindow, Ui_MainWindow):
 
     def update_play_time(self):
         self.current_time += 1
-        if self.current_time >= self.media_duration:
-            self.stop_media()
-        self.progressSlider.setValue(self.current_time)
-        current_time = self.current_time
-        self.curTimeLabel.setText('%d:%02d' % (current_time // 60, current_time % 60))
+        self.set_play_time()
 
     def closeEvent(self, event):
         if self.status != self.IDLE:
@@ -246,7 +249,7 @@ class Player(QMainWindow, Ui_MainWindow):
                 self.play_event = threading.Event()
                 self.client_rtp_thread.start()
                 self.timer.timeout.connect(self.start_play)
-                self.timer.start(5000)
+                self.timer.start(3000)
         elif self.status == self.READY:
             # send PLAY
             request_dict = {'CSeq': str(self.seq), 'Session': self.client_session_id, 'Range': 'npt=now-'}
@@ -333,7 +336,7 @@ class Player(QMainWindow, Ui_MainWindow):
         self.set_play_time()
 
         # reset socket
-        # self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
+        self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtp_socket.close()
         self.client_rtp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtp_socket.bind(('127.0.0.1', self.client_rtp_port))
@@ -365,7 +368,7 @@ class Player(QMainWindow, Ui_MainWindow):
         self.status = self.PLAY
         self.play_event.set()
         self.timer.timeout.connect(self.start_play)
-        self.timer.start(5000)
+        self.timer.start(3000)
 
     def destroy_connection(self):
         # reset status
@@ -376,19 +379,19 @@ class Player(QMainWindow, Ui_MainWindow):
         self.media_player.setMedia(QMediaContent())
 
         # reset RTSP socket
-        # self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
+        self.client_rtsp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtsp_socket.close()
         self.client_rtsp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_rtsp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # reset RTP socket
-        # self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
+        self.client_rtp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtp_socket.close()
         self.client_rtp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # reset RTCP socket
-        # self.client_rtcp_socket.shutdown(socket.SHUT_RDWR)
+        self.client_rtcp_socket.shutdown(socket.SHUT_RDWR)
         self.client_rtcp_socket.close()
         self.client_rtcp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_rtcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

@@ -13,6 +13,10 @@
   <property name="windowTitle">
    <string>Media Player</string>
   </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>player-icon.png</normaloff>player-icon.png</iconset>
+  </property>
   <property name="autoFillBackground">
    <bool>false</bool>
   </property>

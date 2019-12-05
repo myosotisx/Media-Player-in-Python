@@ -14,6 +14,9 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(854, 604)
+        icon = QtGui.QIcon()
+        icon.addPixmap(QtGui.QPixmap("player-icon.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        MainWindow.setWindowIcon(icon)
         MainWindow.setAutoFillBackground(False)
         MainWindow.setStyleSheet("")
         MainWindow.setAnimated(True)
@@ -143,9 +146,9 @@ class Ui_MainWindow(object):
 "    background: rgb(255,128,6);\n"
 "    border: 1px solid rgb(255,153,102);\n"
 "}")
-        icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("play.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
-        self.playBtn.setIcon(icon)
+        icon1 = QtGui.QIcon()
+        icon1.addPixmap(QtGui.QPixmap("play.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.playBtn.setIcon(icon1)
         self.playBtn.setObjectName("playBtn")
         self.horizontalLayout_1.addWidget(self.playBtn)
         self.pauseBtn = QtWidgets.QPushButton(self.dockWidgetContents_3)
@@ -166,9 +169,9 @@ class Ui_MainWindow(object):
 "    background: rgb(255,128,6);\n"
 "    border: 1px solid rgb(255,153,102);\n"
 "}")
-        icon1 = QtGui.QIcon()
-        icon1.addPixmap(QtGui.QPixmap("pause.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
-        self.pauseBtn.setIcon(icon1)
+        icon2 = QtGui.QIcon()
+        icon2.addPixmap(QtGui.QPixmap("pause.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.pauseBtn.setIcon(icon2)
         self.pauseBtn.setObjectName("pauseBtn")
         self.horizontalLayout_1.addWidget(self.pauseBtn)
         self.stopBtn = QtWidgets.QPushButton(self.dockWidgetContents_3)
@@ -189,9 +192,9 @@ class Ui_MainWindow(object):
 "    background: rgb(255,128,6);\n"
 "    border: 1px solid rgb(255,153,102);\n"
 "}")
-        icon2 = QtGui.QIcon()
-        icon2.addPixmap(QtGui.QPixmap("stop.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
-        self.stopBtn.setIcon(icon2)
+        icon3 = QtGui.QIcon()
+        icon3.addPixmap(QtGui.QPixmap("stop.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.stopBtn.setIcon(icon3)
         self.stopBtn.setObjectName("stopBtn")
         self.horizontalLayout_1.addWidget(self.stopBtn)
         self.verticalLayout_2.addLayout(self.horizontalLayout_1)
